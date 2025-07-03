@@ -1,48 +1,45 @@
-import React, {useState} from 'react';
-import {SafeAreaView, View, StatusBar} from 'react-native';
-import {NativeEngine} from 'reactylon/mobile';
-import {Scene} from 'reactylon';
-import {Tools, type ArcRotateCamera, type Camera} from '@babylonjs/core';
-import Content from './Content';
+import React from 'react';
+import {NavigationContainer} from '@react-navigation/native';
+import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {RootStackParamList} from './types';
+import HomeScreen from './screens/HomeScreen/HomeScreen';
+import SceneScreen from './screens/SceneScreen/SceneScreen';
+
+// @ts-expect-error
+import Icon from 'react-native-vector-icons/FontAwesome';
+
+const Tab = createBottomTabNavigator<RootStackParamList>();
 
 const App = () => {
-  const [camera, setCamera] = useState<Camera>();
-
   return (
-    <>
-      <StatusBar barStyle="dark-content" />
-      <SafeAreaView style={{flex: 1, backgroundColor: 'white'}}>
-        <View style={{flex: 1}}>
-          {camera && (
-            <NativeEngine camera={camera}>
-              <Scene
-                onSceneReady={scene => {
-                  scene.createDefaultCameraOrLight(true, undefined, true);
-                  const arcCamera = scene.activeCamera as ArcRotateCamera;
+    <NavigationContainer>
+      <Tab.Navigator
+        initialRouteName="Home"
+        screenOptions={({route}) => ({
+          headerShown: true,
+          tabBarIcon: ({color, size}) => {
+            let iconName: string;
 
-                  arcCamera.panningSensibility = 5000; // Default is 1000, higher = slower
+            switch (route.name) {
+              case 'Home':
+                iconName = 'home';
+                break;
+              case 'Scene':
+                iconName = 'cube';
+                break;
+              default:
+                iconName = 'circle';
+            }
 
-                  arcCamera.pinchPrecision = 3000; // Default is 12, higher = slower
-
-                  arcCamera.wheelPrecision = 100; // Default is 3, higher = slower
-
-                  arcCamera.speed = 0.1; // Default is 2, lower = slower
-
-                  arcCamera.angularSensibilityX = 4000; // Default is 1000
-                  arcCamera.angularSensibilityY = 4000; // Default is 1000
-
-                  // Posisi awal camera
-                  arcCamera.alpha = Math.PI / 2;
-                  arcCamera.beta = Tools.ToRadians(70);
-                  setCamera(arcCamera);
-                }}>
-                <Content />
-              </Scene>
-            </NativeEngine>
-          )}
-        </View>
-      </SafeAreaView>
-    </>
+            return <Icon name={iconName} size={size} color={color} />;
+          },
+          tabBarActiveTintColor: '#007AFF',
+          tabBarInactiveTintColor: 'gray',
+        })}>
+        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Scene" component={SceneScreen} />
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 };
 
