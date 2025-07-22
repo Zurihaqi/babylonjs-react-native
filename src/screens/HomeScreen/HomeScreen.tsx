@@ -1,26 +1,15 @@
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-} from 'react-native';
+import {View, Text, StyleSheet, SafeAreaView} from 'react-native';
 import {RootStackParamList} from '../../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-const HomeScreen: React.FC<Props> = ({navigation}) => {
+const HomeScreen: React.FC<Props> = () => {
   return (
     <SafeAreaView style={{flex: 1}}>
       <View style={styles.container}>
-        <Text style={styles.title}>Welcome</Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate('Scene')}>
-          <Text style={styles.buttonText}>Go to 3D Scene</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>BabylonJs React Native Playground</Text>
       </View>
     </SafeAreaView>
   );
@@ -37,6 +26,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     marginBottom: 24,
     color: '#333',
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#2196F3',

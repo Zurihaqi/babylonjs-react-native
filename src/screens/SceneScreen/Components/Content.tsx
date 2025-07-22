@@ -1,55 +1,37 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
+import {useCanvas, useScene} from 'reactylon';
+import {FreeCamera, HemisphericLight, Matrix, Vector3} from '@babylonjs/core';
 import {ImportMeshAsync} from '@babylonjs/core/Loading/sceneLoader';
 import {Tools} from '@babylonjs/core/Misc/tools';
-import {useScene} from 'reactylon';
 import '@babylonjs/loaders/glTF';
-import {AdvancedDynamicTexture, Ellipse, Control} from '@babylonjs/gui';
-import {ArcRotateCamera, MeshBuilder, Vector3} from '@babylonjs/core';
 
 // @ts-expect-error
 import resolveAssetSource from 'react-native/Libraries/Image/resolveAssetSource';
+import {Dimensions} from 'react-native';
 
 type ContentProps = {
-  onClick: () => void;
+  onUpdateButtons: (screenPoints: {id: number; x: number; y: number}[]) => void;
+  selectedModel: number;
 };
 
-const Content: React.FC<ContentProps> = ({onClick}) => {
-  const scene = useScene();
+const Content: React.FC<ContentProps> = ({onUpdateButtons, selectedModel}) => {
+  const [pointArray, setPointArray] = useState<
+    {id: number; position: Vector3}[]
+  >([]);
+  const pointArrayRef = React.useRef(pointArray);
 
-  const modelPath = resolveAssetSource(
-    require('../../../assets/models/rearcross.glb'),
-  ).uri;
+  const scene = useScene();
+  const canvas = useCanvas();
+  const modelPaths = [
+    resolveAssetSource(require('../../../assets/models/rearcross.glb')).uri,
+    resolveAssetSource(require('../../../assets/models/mainframe.glb')).uri,
+  ];
+  const camera = new FreeCamera('camera', new Vector3(0, 0, 0), scene);
 
   useEffect(() => {
     if (!scene) return;
 
-    const createButton = async (
-      meshName: string,
-      position: Vector3,
-      onClick: () => void,
-    ) => {
-      const plane = MeshBuilder.CreatePlane(
-        meshName,
-        {width: 1.5, height: 0.6},
-        scene,
-      );
-      plane.position = position;
-      plane.rotation = new Vector3(0, Math.PI, 0);
-
-      const texture = AdvancedDynamicTexture.CreateForMesh(plane);
-      const button = new Ellipse();
-
-      button.width = '25%';
-      button.height = '50%';
-      button.background = 'red';
-      button.color = 'white';
-      button.thickness = 4;
-      button.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-      button.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-
-      button.onPointerUpObservable.add(onClick);
-      texture.addControl(button);
-    };
+    const modelPath = modelPaths[selectedModel];
 
     const loadModel = async () => {
       try {
@@ -57,64 +39,94 @@ const Content: React.FC<ContentProps> = ({onClick}) => {
         const result = await ImportMeshAsync(modelPath, scene, {
           meshNames: null,
         });
+        if (result.meshes.length > 0) console.log('Model loaded');
 
-        const meshes = result.meshes.filter(m => m.name !== '__root__');
-        if (meshes.length === 0) return;
+        const mesh = result.meshes[0];
+        mesh.rotationQuaternion = null;
+        mesh.rotation.y = Tools.ToRadians(-90);
 
-        // Compute bounding box center
-        const boundingInfo = meshes[0].getBoundingInfo().boundingBox;
-        let min = boundingInfo.minimumWorld;
-        let max = boundingInfo.maximumWorld;
+        camera.attachControl(canvas, true);
+        camera.setTarget(mesh.position);
 
-        for (let i = 1; i < meshes.length; i++) {
-          const meshBI = meshes[i].getBoundingInfo().boundingBox;
-          min = Vector3.Minimize(min, meshBI.minimumWorld);
-          max = Vector3.Maximize(max, meshBI.maximumWorld);
-        }
+        const light = new HemisphericLight(
+          'light',
+          new Vector3(0, 1, 0),
+          scene,
+        );
+        light.intensity = 0.7;
 
-        const center = max.add(min).scale(0.5);
-        const offset = center.scale(1);
-        for (const mesh of meshes) {
-          mesh.position.addInPlace(offset);
-        }
+        scene.onBeforeRenderObservable.add(() => {
+          const screen = Dimensions.get('window');
+          const updatedPositions = pointArrayRef.current.map((point, idx) => {
+            const projected = Vector3.Project(
+              point.position,
+              Matrix.Identity(),
+              scene.getTransformMatrix(),
+              camera.viewport.toGlobal(screen.width, screen.height),
+            );
+            return {id: idx, x: projected.x, y: projected.y};
+          });
 
-        // Adjust camera
-        const arcCamera = scene.activeCamera as ArcRotateCamera;
-        if (arcCamera) {
-          arcCamera.target = Vector3.Zero();
-          const sizeVec = max.subtract(min);
-          const maxDimension = Math.max(sizeVec.x, sizeVec.y, sizeVec.z);
-          arcCamera.radius = maxDimension * 4;
-          arcCamera.alpha = Math.PI / 2;
-          arcCamera.beta = Math.PI / 3;
-        }
-
-        console.log('Model centered.');
-
-        await createButton('leftButton', new Vector3(-0.5, 2.2, -1), () => {
-          console.log('Left Button Clicked!');
-          onClick();
+          onUpdateButtons(updatedPositions);
         });
 
-        await createButton('rightButton', new Vector3(0.5, 2.2, -1), () => {
-          console.log('Right Button Clicked!');
-          onClick();
-        });
-      } catch (error) {
-        console.error('Failed to load model:', error);
-        Tools.Error(`Failed to load model: ${error}`);
+        scene.onPointerDown = (evt, pickResult) => {
+          if (pickResult.hit && pickResult.pickedPoint) {
+            // Log the position for reference
+            console.log(pickResult.pickedPoint.clone());
+          }
+        };
+      } catch (err) {
+        console.error('Failed to load model', err);
+        Tools.Error(`Failed to load model: ${err}`);
       }
     };
 
-    // Clear previous meshes
-    scene.meshes.forEach(mesh => {
-      if (mesh.name && mesh.name !== '__root__') {
-        mesh.dispose();
-      }
-    });
+    // Clean scene on unmount
+    const unloadModel = () => {
+      scene.meshes.forEach(m => {
+        if (m.name && m.name !== '__root__') m.dispose();
+      });
+      scene.onBeforeRenderObservable.clear();
+      scene.lights.forEach(l => l.dispose());
+    };
 
     loadModel();
-  }, [scene]);
+
+    return () => unloadModel();
+  }, [scene, selectedModel]);
+
+  useEffect(() => {
+    if (selectedModel === 0) {
+      setPointArray([
+        {
+          id: 0,
+          position: new Vector3(-1.0, 1.8, 0.3811612991788832),
+        },
+        {
+          id: 1,
+          position: new Vector3(-1.0, 1.8, 1.6327153249493194),
+        },
+      ]);
+    } else if (selectedModel === 1) {
+      setPointArray([
+        {
+          id: 0,
+          position: new Vector3(-1.0, 1.8, 0.3811612991788832),
+        },
+        {
+          id: 1,
+          position: new Vector3(-1.0, 1.8, 1.6327153249493194),
+        },
+      ]);
+    } else {
+      setPointArray([]);
+    }
+  }, [selectedModel]);
+
+  useEffect(() => {
+    pointArrayRef.current = pointArray;
+  }, [pointArray]);
 
   return <></>;
 };

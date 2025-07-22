@@ -1,21 +1,29 @@
-import React, {useState} from 'react';
+import React, {useCallback, useRef, useState} from 'react';
 import {
   SafeAreaView,
   View,
-  StatusBar,
   Modal,
   Text,
   TouchableOpacity,
   StyleSheet,
+  TextInput,
 } from 'react-native';
 import {NativeEngine} from 'reactylon/mobile';
 import {Scene} from 'reactylon';
-import {Tools, type ArcRotateCamera, type Camera} from '@babylonjs/core';
+import {type ArcRotateCamera, type Camera} from '@babylonjs/core';
 import Content from './Components/Content';
 
 const SceneScreen = () => {
-  const [camera, setCamera] = useState<Camera>();
+  const [camera, setCamera] = useState<Camera | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
+  const [buttonPositions, setButtonPositions] = useState<
+    {id: number; x: number; y: number}[]
+  >([]);
+  const [selectedModel, setSelectedModel] = useState(0);
+
+  const toggleModel = () => {
+    setSelectedModel(prev => (prev === 0 ? 1 : 0));
+  };
 
   return (
     <SafeAreaView style={{flex: 1}}>
@@ -43,19 +51,58 @@ const SceneScreen = () => {
               arcCamera.beta = Math.PI / 2;
               setCamera(arcCamera);
             }}>
-            <Content onClick={() => setModalVisible(true)} />
+            <Content
+              onUpdateButtons={setButtonPositions}
+              selectedModel={selectedModel}
+            />
           </Scene>
         </NativeEngine>
+        <TouchableOpacity
+          onPress={toggleModel}
+          style={{
+            position: 'absolute',
+            top: 40,
+            right: 16,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            paddingVertical: 8,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+            zIndex: 20,
+          }}>
+          <Text style={{color: 'white', fontSize: 16}}>Switch Model</Text>
+        </TouchableOpacity>
+        {buttonPositions.map(pos => (
+          <View
+            key={pos.id}
+            style={{
+              position: 'absolute',
+              top: pos.y - 20,
+              left: pos.x - 40,
+              zIndex: 10,
+            }}>
+            <TouchableOpacity
+              onPress={() => setModalVisible(true)}
+              style={{
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 6,
+              }}>
+              <Text style={{color: 'yellow'}}>{`Point ${pos.id}`}</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
       </View>
 
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalText}>Button Clicked!</Text>
+            <Text style={styles.modalText}>Point {selectedModel}</Text>
+            <TextInput style={styles.input} placeholder="Input Sesuatu" />
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setModalVisible(false)}>
-              <Text style={styles.buttonText}>Close</Text>
+              <Text style={styles.buttonText}>Simpan</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -88,7 +135,7 @@ const styles = StyleSheet.create({
   },
   modalText: {
     fontSize: 18,
-    marginBottom: 16,
+    // marginBottom: 16,
     color: 'black',
   },
   closeButton: {
@@ -96,6 +143,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
+  },
+  input: {
+    height: 40,
+    margin: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    color: 'black',
   },
   buttonText: {
     color: 'white',
