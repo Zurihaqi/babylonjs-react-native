@@ -1,4 +1,4 @@
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useState} from 'react';
 import {
   SafeAreaView,
   View,
@@ -49,6 +49,8 @@ const SceneScreen = () => {
               // Posisi awal camera
               arcCamera.alpha = Math.PI / 2;
               arcCamera.beta = Math.PI / 2;
+              arcCamera.radius = 10;
+
               setCamera(arcCamera);
             }}>
             <Content

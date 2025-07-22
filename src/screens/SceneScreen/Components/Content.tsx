@@ -1,6 +1,15 @@
 import React, {useEffect, useState} from 'react';
 import {useCanvas, useScene} from 'reactylon';
-import {FreeCamera, HemisphericLight, Matrix, Vector3} from '@babylonjs/core';
+import {
+  AbstractMesh,
+  FreeCamera,
+  HemisphericLight,
+  Matrix,
+  Nullable,
+  Observer,
+  Scene,
+  Vector3,
+} from '@babylonjs/core';
 import {ImportMeshAsync} from '@babylonjs/core/Loading/sceneLoader';
 import {Tools} from '@babylonjs/core/Misc/tools';
 import '@babylonjs/loaders/glTF';
@@ -26,73 +35,86 @@ const Content: React.FC<ContentProps> = ({onUpdateButtons, selectedModel}) => {
     resolveAssetSource(require('../../../assets/models/rearcross.glb')).uri,
     resolveAssetSource(require('../../../assets/models/mainframe.glb')).uri,
   ];
-  const camera = new FreeCamera('camera', new Vector3(0, 0, 0), scene);
+
+  const cameraRef = React.useRef<FreeCamera | null>(null);
+
+  if (!cameraRef.current) {
+    cameraRef.current = new FreeCamera('camera', new Vector3(0, 0, 0), scene);
+  }
+
+  const modelPath = modelPaths[selectedModel];
+  let importedMeshes: AbstractMesh[] = [];
+  let light: HemisphericLight | null = null;
+  let renderObserver: Nullable<Observer<Scene>> = null;
+
+  const loadModel = async () => {
+    try {
+      const result = await ImportMeshAsync(modelPath, scene, {
+        meshNames: null,
+      });
+      importedMeshes = result.meshes;
+
+      const mesh = result.meshes[0];
+      mesh.rotationQuaternion = null;
+      mesh.rotation.y = Tools.ToRadians(-90);
+
+      const camera = cameraRef.current!;
+      camera.attachControl(canvas, true);
+      camera.setTarget(mesh.position);
+
+      light = new HemisphericLight('light', new Vector3(0, 1, 0), scene);
+      light.intensity = 0.7;
+
+      renderObserver = scene.onBeforeRenderObservable.add(() => {
+        const screen = Dimensions.get('window');
+        const updatedPositions = pointArrayRef.current.map((point, idx) => {
+          const projected = Vector3.Project(
+            point.position,
+            Matrix.Identity(),
+            scene.getTransformMatrix(),
+            camera.viewport.toGlobal(screen.width, screen.height),
+          );
+          return {id: idx, x: projected.x, y: projected.y};
+        });
+        onUpdateButtons(updatedPositions);
+      });
+
+      scene.onPointerDown = (evt, pickResult) => {
+        if (pickResult.hit && pickResult.pickedPoint) {
+          // Logs the position for reference
+          console.log(pickResult.pickedPoint.clone());
+        }
+      };
+    } catch (err) {
+      console.error('Failed to load model', err);
+    }
+  };
 
   useEffect(() => {
-    if (!scene) return;
-
-    const modelPath = modelPaths[selectedModel];
-
-    const loadModel = async () => {
-      try {
-        console.log('Loading model...');
-        const result = await ImportMeshAsync(modelPath, scene, {
-          meshNames: null,
-        });
-        if (result.meshes.length > 0) console.log('Model loaded');
-
-        const mesh = result.meshes[0];
-        mesh.rotationQuaternion = null;
-        mesh.rotation.y = Tools.ToRadians(-90);
-
-        camera.attachControl(canvas, true);
-        camera.setTarget(mesh.position);
-
-        const light = new HemisphericLight(
-          'light',
-          new Vector3(0, 1, 0),
-          scene,
-        );
-        light.intensity = 0.7;
-
-        scene.onBeforeRenderObservable.add(() => {
-          const screen = Dimensions.get('window');
-          const updatedPositions = pointArrayRef.current.map((point, idx) => {
-            const projected = Vector3.Project(
-              point.position,
-              Matrix.Identity(),
-              scene.getTransformMatrix(),
-              camera.viewport.toGlobal(screen.width, screen.height),
-            );
-            return {id: idx, x: projected.x, y: projected.y};
-          });
-
-          onUpdateButtons(updatedPositions);
-        });
-
-        scene.onPointerDown = (evt, pickResult) => {
-          if (pickResult.hit && pickResult.pickedPoint) {
-            // Log the position for reference
-            console.log(pickResult.pickedPoint.clone());
-          }
-        };
-      } catch (err) {
-        console.error('Failed to load model', err);
-        Tools.Error(`Failed to load model: ${err}`);
-      }
-    };
-
-    // Clean scene on unmount
+    // if (!scene) return;
     const unloadModel = () => {
-      scene.meshes.forEach(m => {
-        if (m.name && m.name !== '__root__') m.dispose();
+      importedMeshes.forEach(m => {
+        if (m && m.name !== '__root__') m.dispose();
       });
-      scene.onBeforeRenderObservable.clear();
-      scene.lights.forEach(l => l.dispose());
+
+      if (light) {
+        light.dispose();
+        light = null;
+      }
+
+      if (renderObserver) {
+        scene.onBeforeRenderObservable.remove(renderObserver);
+        renderObserver = null;
+      }
+
+      if (cameraRef.current) {
+        cameraRef.current.detachControl();
+      }
     };
 
     loadModel();
 
+    // Clean scene on unmount
     return () => unloadModel();
   }, [scene, selectedModel]);
 
@@ -122,10 +144,18 @@ const Content: React.FC<ContentProps> = ({onUpdateButtons, selectedModel}) => {
     } else {
       setPointArray([]);
     }
+
+    return () => {
+      setPointArray([]);
+    };
   }, [selectedModel]);
 
   useEffect(() => {
     pointArrayRef.current = pointArray;
+
+    return () => {
+      pointArrayRef.current = [];
+    };
   }, [pointArray]);
 
   return <></>;
