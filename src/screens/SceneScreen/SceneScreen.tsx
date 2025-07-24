@@ -20,6 +20,7 @@ const SceneScreen = () => {
     {id: number; x: number; y: number}[]
   >([]);
   const [selectedModel, setSelectedModel] = useState(0);
+  const [selectedPoint, setSelectedPoint] = useState(0);
 
   const toggleModel = () => {
     setSelectedModel(prev => (prev === 0 ? 1 : 0));
@@ -83,7 +84,10 @@ const SceneScreen = () => {
               zIndex: 10,
             }}>
             <TouchableOpacity
-              onPress={() => setModalVisible(true)}
+              onPress={() => {
+                setModalVisible(true);
+                setSelectedPoint(pos.id);
+              }}
               style={{
                 backgroundColor: 'rgba(0,0,0,0.3)',
                 paddingVertical: 6,
@@ -99,7 +103,7 @@ const SceneScreen = () => {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalText}>Point {selectedModel}</Text>
+            <Text style={styles.modalText}>Point {selectedPoint}</Text>
             <TextInput style={styles.input} placeholder="Input Sesuatu" />
             <TouchableOpacity
               style={styles.closeButton}
