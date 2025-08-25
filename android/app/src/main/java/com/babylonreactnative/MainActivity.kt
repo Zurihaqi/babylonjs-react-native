@@ -1,4 +1,4 @@
-package com.babylonreactnative
+package zul.babylonreactnative
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

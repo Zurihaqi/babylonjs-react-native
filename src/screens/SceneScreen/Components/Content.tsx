@@ -14,16 +14,21 @@ import {ImportMeshAsync} from '@babylonjs/core/Loading/sceneLoader';
 import {Tools} from '@babylonjs/core/Misc/tools';
 import '@babylonjs/loaders/glTF';
 
-// @ts-expect-error
-import resolveAssetSource from 'react-native/Libraries/Image/resolveAssetSource';
+import RNFS from 'react-native-fs';
+import {Platform} from 'react-native';
 import {Dimensions} from 'react-native';
 
 type ContentProps = {
   onUpdateButtons: (screenPoints: {id: number; x: number; y: number}[]) => void;
   selectedModel: number;
+  setIsLoading: (isLoading: boolean) => void;
 };
 
-const Content: React.FC<ContentProps> = ({onUpdateButtons, selectedModel}) => {
+const Content: React.FC<ContentProps> = ({
+  onUpdateButtons,
+  selectedModel,
+  setIsLoading,
+}) => {
   const [pointArray, setPointArray] = useState<
     {id: number; position: Vector3}[]
   >([]);
@@ -31,10 +36,6 @@ const Content: React.FC<ContentProps> = ({onUpdateButtons, selectedModel}) => {
 
   const scene = useScene();
   const canvas = useCanvas();
-  const modelPaths = [
-    resolveAssetSource(require('../../../assets/models/rearcross.glb')).uri,
-    resolveAssetSource(require('../../../assets/models/mainframe.glb')).uri,
-  ];
 
   const cameraRef = React.useRef<FreeCamera | null>(null);
 
@@ -42,14 +43,36 @@ const Content: React.FC<ContentProps> = ({onUpdateButtons, selectedModel}) => {
     cameraRef.current = new FreeCamera('camera', new Vector3(0, 0, 0), scene);
   }
 
-  const modelPath = modelPaths[selectedModel];
   let importedMeshes: AbstractMesh[] = [];
   let light: HemisphericLight | null = null;
   let renderObserver: Nullable<Observer<Scene>> = null;
 
+  const copyModelToFS = async (modelName: string) => {
+    const localPath = RNFS.DocumentDirectoryPath + '/' + modelName;
+
+    // If file doesn’t exist, copy it from APK/assets or Metro bundle
+    const exists = await RNFS.exists(localPath);
+    if (!exists) {
+      if (Platform.OS === 'android') {
+        // Copy from android assets
+        await RNFS.copyFileAssets(`models/${modelName}`, localPath);
+      } else {
+        // For iOS, copy from bundle if needed
+        await RNFS.copyFile(`${RNFS.MainBundlePath}/${modelName}`, localPath);
+      }
+    }
+
+    return 'file://' + localPath;
+  };
+
   const loadModel = async () => {
     try {
-      const result = await ImportMeshAsync(modelPath, scene, {
+      setIsLoading(true);
+
+      const modelName = selectedModel === 0 ? 'rearcross.glb' : 'mainframe.glb';
+      const modelUri = await copyModelToFS(modelName);
+
+      const result = await ImportMeshAsync(modelUri, scene, {
         meshNames: null,
       });
       importedMeshes = result.meshes;
@@ -87,6 +110,8 @@ const Content: React.FC<ContentProps> = ({onUpdateButtons, selectedModel}) => {
       };
     } catch (err) {
       console.error('Failed to load model', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 

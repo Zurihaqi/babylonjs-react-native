@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import {NativeEngine} from 'reactylon/mobile';
 import {Scene} from 'reactylon';
@@ -21,6 +22,7 @@ const SceneScreen = () => {
   >([]);
   const [selectedModel, setSelectedModel] = useState(0);
   const [selectedPoint, setSelectedPoint] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
   const toggleModel = () => {
     setSelectedModel(prev => (prev === 0 ? 1 : 0));
@@ -57,10 +59,12 @@ const SceneScreen = () => {
             <Content
               onUpdateButtons={setButtonPositions}
               selectedModel={selectedModel}
+              setIsLoading={setIsLoading}
             />
           </Scene>
         </NativeEngine>
         <TouchableOpacity
+          disabled={isLoading}
           onPress={toggleModel}
           style={{
             position: 'absolute',
@@ -72,7 +76,10 @@ const SceneScreen = () => {
             borderRadius: 8,
             zIndex: 20,
           }}>
-          <Text style={{color: 'white', fontSize: 16}}>Switch Model</Text>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+            <Text style={{color: 'white', fontSize: 16}}>Switch Model</Text>
+            {isLoading && <ActivityIndicator size="small" color="white" />}
+          </View>
         </TouchableOpacity>
         {buttonPositions.map(pos => (
           <View
@@ -104,7 +111,7 @@ const SceneScreen = () => {
         <View style={styles.modalContainer}>
           <View style={styles.modalBox}>
             <Text style={styles.modalText}>Point {selectedPoint}</Text>
-            <TextInput style={styles.input} placeholder="Input Sesuatu" />
+            <TextInput style={styles.input} placeholder="" />
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setModalVisible(false)}>

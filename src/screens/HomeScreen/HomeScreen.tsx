@@ -9,7 +9,7 @@ const HomeScreen: React.FC<Props> = () => {
   return (
     <SafeAreaView style={{flex: 1}}>
       <View style={styles.container}>
-        <Text style={styles.title}>BabylonJs React Native Playground</Text>
+        <Text style={styles.title}>3D Demo</Text>
       </View>
     </SafeAreaView>
   );
